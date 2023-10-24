@@ -1,15 +1,19 @@
-﻿ //Eksempel på funktionel kodning hvor der kun bliver brugt et model lag
+﻿//Eksempel på funktionel kodning hvor der kun bliver brugt et model lag
+using System.Xml.Serialization;
+
 namespace Plukliste;
 
 class PluklisteProgram { 
 
     static void Main()
     {
+        PluklisteFile Files = new PluklisteFile();
+        Files.Reload();
+        Files.GetCurrentFile();
+        Files.CreateTemplate();
         //Arrange
-        char readKey = ' ';
-        List<string> files;
-        var index = -1;
-        var standardColor = Console.ForegroundColor;
+        char ReadKey = ' ';
+        var StandardColor = Console.ForegroundColor;
         Directory.CreateDirectory("import");
 
         if (!Directory.Exists("export"))
@@ -18,49 +22,40 @@ class PluklisteProgram {
             Console.ReadLine(); 
             return;
         }
-        files = Directory.EnumerateFiles("export").ToList();
 
         //ACT
-        while (readKey != 'Q')
+        while (ReadKey != 'Q')
         {
-            if (files.Count == 0)
+            if (Files.FileCount == 0)
             {
                 Console.WriteLine("No files found.");
             }
             else
             {
-                if (index == -1) index = 0;
-
-                Console.WriteLine($"Plukliste {index + 1} af {files.Count}");
-                Console.WriteLine($"\nfile: {files[index]}");
-
-                //read file
-                FileStream file = File.OpenRead(files[index]);
-                System.Xml.Serialization.XmlSerializer xmlSerializer =
-                    new System.Xml.Serialization.XmlSerializer(typeof(Pluklist));
-                var plukliste = (Pluklist?)xmlSerializer.Deserialize(file);
+                Files.GetCurrentFile();                
+                Console.WriteLine($"Plukliste {Files.CurrentIndex + 1} af {Files.FileCount}");
+                Console.WriteLine($"\nfile: {Files.FileName}");
 
                 //print plukliste
-                if (plukliste != null && plukliste.Lines != null)
+                if (Files.Plukliste != null && Files.Plukliste.Lines != null)
                 {
-                    Console.WriteLine("\n{0, -13}{1}", "Name:", plukliste.Name);
-                    Console.WriteLine("{0, -13}{1}", "Forsendelse:", plukliste.Shipment);
+                    Console.WriteLine("\n{0, -13}{1}", "Name:", Files.Plukliste.Name);
+                    Console.WriteLine("{0, -13}{1}", "Forsendelse:", Files.Plukliste.Shipment);
                     //TODO: Add adresse to screen print
 
                     Console.WriteLine("\n{0,-7}{1,-9}{2,-20}{3}", "Antal", "Type", "Produktnr.", "Navn");
-                    foreach (var item in plukliste.Lines)
+                    foreach (var item in Files.Plukliste.Lines)
                     {
                         Console.WriteLine("{0,-7}{1,-9}{2,-20}{3}", item.Amount, item.Type, item.ProductID, item.Title);
                     }
                 }
-                file.Close();
             }
 
             void PrintOptions(char firstLetter, string value)
             {
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.Write(firstLetter);
-                Console.ForegroundColor = standardColor;
+                Console.ForegroundColor = StandardColor;
                 Console.WriteLine(value);
             }
 
@@ -68,48 +63,47 @@ class PluklisteProgram {
             Console.WriteLine("\n\nOptions:");
             PrintOptions('Q', "uit");
 
-            if (index >= 0)
+            if (Files.CurrentIndex >= 0)
             {
                 PrintOptions('A', "fslut plukseddel");
             }
-            if (index > 0)
+            if (Files.HasPrevious())
             {
                 PrintOptions('F', "orrige plukseddel");
             }
-            if (index < files.Count - 1)
+            if (Files.HasNext())
             {
                 PrintOptions('N', "æste plukseddel");
             }
             PrintOptions('G', "enindlæs pluksedler");
 
-            readKey = Console.ReadKey().KeyChar;
-            if (readKey >= 'a') readKey = Char.ToUpper(readKey); //HACK: To upper
+            ReadKey = Console.ReadKey().KeyChar;
+            ReadKey = Char.ToUpper(ReadKey);
             Console.Clear();
 
             Console.ForegroundColor = ConsoleColor.Red; //status in red
-            switch (readKey)
+            switch (ReadKey)
             {
                 case 'G':
-                    files = Directory.EnumerateFiles("export").ToList();
-                    index = -1;
+                    Files.Reload();
                     Console.WriteLine("Pluklister genindlæst");
                     break;
                 case 'F':
-                    if (index > 0) index--;
+                    Files.Previous();
                     break;
                 case 'N':
-                    if (index < files.Count - 1) index++;
+                    Files.Next();
                     break;
                 case 'A':
-                    //Move files to import directory
-                    var filewithoutPath = files[index].Substring(files[index].LastIndexOf('\\'));
-                    File.Move(files[index], string.Format(@"import\\{0}", filewithoutPath));
-                    Console.WriteLine($"Plukseddel {files[index]} afsluttet.");
-                    files.Remove(files[index]);
-                    if (index == files.Count) index--;
+                    Files.ImportDirectory();
+                    break;
+                case 'P':
+                    string FileToCreate = Files.CreateTemplate();
+
+                    Console.WriteLine("Added the template for {0} at print/{0}.html", FileToCreate);
                     break;
             }
-            Console.ForegroundColor = standardColor; //reset color
+            Console.ForegroundColor = StandardColor; //reset color
 
         }
     }
